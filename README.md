@@ -1,2 +1,2 @@
-# Chipset-API
-API for programming chipsets (EE)PROM for homemade computers
+# Microcode-API
+API for programming micrcode (EE)PROM's for homemade computers

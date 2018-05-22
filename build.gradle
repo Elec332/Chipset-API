@@ -1,8 +1,8 @@
 apply plugin: 'java'
 
-group 'groupID'
+group 'elec332'
 version '0.0'
-archivesBaseName = 'Chipset-API'
+archivesBaseName = 'Microcode-API'
 
 sourceCompatibility = 1.8
 
