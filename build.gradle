@@ -1,0 +1,14 @@
+apply plugin: 'java'
+
+group 'groupID'
+version '0.0'
+archivesBaseName = 'Chipset-API'
+
+sourceCompatibility = 1.8
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+}
