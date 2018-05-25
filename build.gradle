@@ -11,4 +11,5 @@ repositories {
 }
 
 dependencies {
+    compile 'com.jamierf:rxtx:1.2'
 }
