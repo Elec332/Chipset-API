@@ -15,6 +15,8 @@ public interface IMicrocodeInstruction {
 
         public void addStage(IMicrocodeBit bit, IMicrocodeBit... bits);
 
+        public void setDescription(String desc);
+
     }
 
 }

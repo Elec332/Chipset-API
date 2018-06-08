@@ -1,9 +1,9 @@
 package elec332.microcode.api;
 
 /**
- * Created by Elec332 on 22-5-2018
+ * Created by Elec332 on 7-6-2018
  */
-public interface IMicrocodeBit {
+public interface IInputBit {
 
     public int getBitIndex();
 

@@ -10,6 +10,19 @@ repositories {
     mavenCentral()
 }
 
+tasks.build.dependsOn("buildDep")
+
+task buildDep(type: Jar) {
+    baseName = project.name + '-all'
+    from {
+        configurations.compile.collect {
+            it.isDirectory() ? it : zipTree(it)
+        }
+    }
+    with jar
+}
+
 dependencies {
-    compile 'com.jamierf:rxtx:1.2'
+	compile fileTree(dir: 'libs', include: '*.jar')
+    compile 'com.neuronrobotics:nrjavaserial:3.12.1'
 }
