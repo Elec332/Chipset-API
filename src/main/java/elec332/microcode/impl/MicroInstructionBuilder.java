@@ -18,12 +18,13 @@ class MicroInstructionBuilder implements IMicrocodeInstruction.Builder {
 
     private final List<IMicrocodeBit[]> data;
     private String desc;
+    private int[] data_ = null;
 
     @Override
-    public void addStage(IMicrocodeBit bit, IMicrocodeBit... bits) {
-        IMicrocodeBit[] s = new MicrocodeBit[bits.length + 1];
-        s[0] = bit;
-        System.arraycopy(bits, 0, s, 1, bits.length);
+    public void addStage(IMicrocodeBit... bits) {
+        checkCompile();
+        IMicrocodeBit[] s = new MicrocodeBit[bits.length];
+        System.arraycopy(bits, 0, s, 0, bits.length);
         data.add(s);
     }
 
@@ -32,9 +33,38 @@ class MicroInstructionBuilder implements IMicrocodeInstruction.Builder {
         this.desc = desc;
     }
 
+    @Override
+    public String getDescription() {
+        return this.desc;
+    }
+
+    int getData(int stage){
+        if (data_ == null){
+            data_ = new int[data.size()];
+            for (int i = 0; i < data.size(); i++) {
+                int byt = 0;
+                for (IMicrocodeBit mcb : data.get(i)){
+                    byt |= 1 << mcb.getBitIndex();
+                }
+                data_[i] = byt;
+            }
+        }
+        if (stage >= data_.length){
+            return 0;
+        }
+        return data_[stage];
+    }
+
     void merge(MicroInstructionBuilder other){
+        checkCompile();
         data.addAll(other.data);
         setDescription(other.desc);
+    }
+
+    private void checkCompile(){
+        if (data_ != null){
+            throw new IllegalStateException("Data has already been compiled!");
+        }
     }
 
 }

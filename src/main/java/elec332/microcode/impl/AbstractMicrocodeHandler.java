@@ -24,29 +24,33 @@ abstract class AbstractMicrocodeHandler implements IMicrocodeHandler {
         this.nonStageInputs_ = Collections.unmodifiableList(this.nonStageInputBits);
         List<IInputBit> instructionInputs = new ArrayList<>();
         this.instructionInputs_ = Collections.unmodifiableList(instructionInputs);
-        int stageBits = Integer.SIZE - Integer.numberOfLeadingZeros(stages);
-        for (int i = 0; i < stageBits; i++) {
-            provisionInputBit("Stage bit " + i, i);
-        }
-        for (int i = stageBits; i < stageBits + instructionBits; i++) {
+        this.stageBits = Integer.SIZE - Integer.numberOfLeadingZeros(stages);
+        for (int i = 0; i < instructionBits; i++) {
             instructionInputs.add(provisionInputBit("Instruction bit " + i, i));
         }
+        for (int i = instructionBits; i < instructionBits + stageBits; i++) {
+            provisionInputBit("Stage bit " + (i - instructionBits), i);
+        }
+
         this.init = true;
         this.instructions = new HashMap<>();
         this.writeHandler = new PROMWriteHandler(this);
     }
 
-    private final Map<Integer, MicroInstructionBuilder> instructions;
+    protected final Map<Integer, MicroInstructionBuilder> instructions;
 
-    private final int stages, instructionBits;
+    private final int stages, instructionBits, stageBits;
     private final Map<Integer, IMicrocodeBit> provisionedBits;
     private final Map<Integer, IInputBit> provisionedInputs;
+    @SuppressWarnings("all")
     private final List<Integer> freeInputs;
     private final List<IInputBit> nonStageInputBits;
     private final List<IInputBit> nonStageInputs_;
     private final List<IInputBit> instructionInputs_;
 
     private final PROMWriteHandler writeHandler;
+    private IInputBit wildcard;
+    private IInputBit[] wildcardArr;
 
     private boolean frozen, init;
     private int inputs, outputs;
@@ -57,12 +61,27 @@ abstract class AbstractMicrocodeHandler implements IMicrocodeHandler {
         if (instruction < -1){ //Plz...
             throw new IllegalArgumentException();
         } else if (instruction == -1){
-            validBits.addAll(getInstructionBits());
+            validBits.addAll(instructionInputs_);
         }
-        List<IInputBit> inputs = Arrays.asList(inputz);
-        int compiledInput = compile(inputs);
-        validBits.addAll(getNonStageInputBits());
+        List<IInputBit> inputs = new ArrayList<>(Arrays.asList(inputz));
+        Arrays.stream(inputz).forEach(inputBit -> {
+            if (inputBit instanceof MicrocodeBit.Wildcard){
+                validBits.addAll(((MicrocodeBit.Wildcard) inputBit).bits);
+            }
+        });
         validBits.removeAll(inputs);
+        if (instruction >= 0){
+            int inst = instruction;
+            for (int i = 0; i < instructionBits; i++) {
+                if ((inst & 1) == 1){
+                    inputs.add(instructionInputs_.get(i));
+                }
+                inst = inst >> 1;
+            }
+        }
+        inputs.removeIf(inputBit -> inputBit instanceof MicrocodeBit.Wildcard);
+        int compiledInput = compile(inputs);
+
         MicroInstructionBuilder mib = new MicroInstructionBuilder();
         builder.accept(mib);
 
@@ -79,11 +98,31 @@ abstract class AbstractMicrocodeHandler implements IMicrocodeHandler {
                     data.add(validBits.get(j));
                 }
             }
+            if (instruction>=0)
+            System.out.println(data);
             int iD = compile(data) | compiledInput;
+            if (instruction>=0)
+            System.out.println("add builder to "+Integer.toBinaryString(iD));
             instructions.computeIfAbsent(iD, integer -> new MicroInstructionBuilder()).merge(mib);
         }
 
     }
+
+    @Override
+    public final int getDataBitCount() {
+        return getNonStageInputBits().size();
+    }
+
+    @Override
+    public int getStageBitCount() {
+        return stageBits;
+    }
+
+    @Override
+    public int getInstructionBitCount() {
+        return instructionBits;
+    }
+
 
     @Override
     public int getRequiredChips(IPROMData chip) {
@@ -92,7 +131,7 @@ abstract class AbstractMicrocodeHandler implements IMicrocodeHandler {
 
     @Override
     public void writeData(IPROMData chip) {
-        this.writeHandler.writeData(chip);
+        this.writeHandler.writeData(chip, -1);
     }
 
     private int compile(List<IInputBit> bits){
@@ -103,35 +142,38 @@ abstract class AbstractMicrocodeHandler implements IMicrocodeHandler {
         return ret;
     }
 
-    protected final void checkBitValidity(IMicrocodeBit bit){
-        if (this.provisionedBits.get(bit.getBitIndex()) != bit){
-            throw new IllegalArgumentException("Invalid bit!");
+    @Override
+    public IInputBit[] getInputBitsExcept(IInputBit... exclusive) {
+        checkFreeze(true);
+        if (exclusive.length == 0){
+            return wildcardArr;
         }
+        return getWC(exclusive).toArray(new IInputBit[0]);
     }
 
-    protected final boolean isFrozen() {
-        return this.frozen;
+    private List<IInputBit> getWC(IInputBit... exclusive){
+        Arrays.stream(exclusive).forEach(inputBit -> {
+            if (provisionedInputs.get(inputBit.getBitIndex()) != inputBit){
+                throw new IllegalArgumentException();
+            }
+        });
+        List<IInputBit> rl = new ArrayList<>(getNonStageInputBits());
+        rl.removeAll(Arrays.asList(exclusive));
+        return rl;
     }
 
-    protected final List<Integer> getFreeInputs() {
-        if (!isFrozen()){
-            throw new IllegalArgumentException("Bit registry hasn't been frozen yet!");
+    @Override
+    public IInputBit getWildcard(IInputBit... exclusive) {
+        checkFreeze(true);
+        if (exclusive.length == 0){
+            return wildcard;
         }
-        return this.freeInputs;
+        return new MicrocodeBit.Wildcard(getWC(exclusive));
     }
 
-    protected final List<IInputBit> getNonStageInputBits() {
-        if (!isFrozen()){
-            throw new IllegalArgumentException("Bit registry hasn't been frozen yet!");
-        }
+    private List<IInputBit> getNonStageInputBits() {
+        checkFreeze(true);
         return this.nonStageInputs_;
-    }
-
-    protected final List<IInputBit> getInstructionBits() {
-        if (!isFrozen()){
-            throw new IllegalArgumentException("Bit registry hasn't been frozen yet!");
-        }
-        return this.instructionInputs_;
     }
 
     @Override
@@ -141,25 +183,19 @@ abstract class AbstractMicrocodeHandler implements IMicrocodeHandler {
 
     @Override
     public final int getOutputs() {
-        if (!isFrozen()){
-            throw new IllegalArgumentException("Bit registry hasn't been frozen yet!");
-        }
+        checkFreeze(true);
         return this.outputs;
     }
 
     @Override
     public final int getInputs() {
-        if (!isFrozen()){
-            throw new IllegalArgumentException("Bit registry hasn't been frozen yet!");
-        }
+        checkFreeze(true);
         return this.inputs;
     }
 
     @Override
     public IMicrocodeBit provisionBit(String desc, int id) {
-        if (isFrozen()){
-            throw new IllegalArgumentException("Bit registry has been frozen!");
-        }
+        checkFreeze(false);
         if (this.provisionedBits.containsKey(id)){
             throw new IllegalArgumentException("Bit " + id + " is already in use!");
         }
@@ -181,10 +217,8 @@ abstract class AbstractMicrocodeHandler implements IMicrocodeHandler {
 
     @Override
     public IInputBit provisionInputBit(String desc, int id) {
-        if (isFrozen()){
-            throw new IllegalArgumentException("Bit registry has been frozen!");
-        }
-        if (this.provisionedBits.containsKey(id)){
+        checkFreeze(false);
+        if (this.provisionedInputs.containsKey(id)){
             throw new IllegalArgumentException("Bit " + id + " is already in use!");
         }
         if (id < 0){
@@ -220,6 +254,18 @@ abstract class AbstractMicrocodeHandler implements IMicrocodeHandler {
         }
         if (inputs > 31){
             throw new StackOverflowError("More than 31 inputs will overflow integers!");
+        }
+        wildcard = new MicrocodeBit.Wildcard(nonStageInputBits);
+        wildcardArr = nonStageInputBits.toArray(new IInputBit[0]);
+    }
+
+    private void checkFreeze(boolean needsFreeze){
+        if (!frozen == needsFreeze){
+            if (needsFreeze) {
+                throw new IllegalArgumentException("Bit registry hasn't been frozen yet!");
+            } else {
+                throw new IllegalArgumentException("Bit registry has been frozen!");
+            }
         }
     }
 
