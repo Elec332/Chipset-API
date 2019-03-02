@@ -57,7 +57,7 @@ class MicroInstructionBuilder implements IMicrocodeInstruction.Builder {
 
     int getData(int stage){
         if (stage >= maxStages){
-            throw new UnsupportedOperationException();
+            return 0;
         }
         if (data_ == null){
             data_ = new int[data.size()];
