@@ -1,8 +1,8 @@
 package elec332.microcode.impl;
 
-import elec332.microcode.api.MicrocodeAPI;
 import elec332.microcode.api.IMicrocodeAPI;
 import elec332.microcode.api.IMicrocodeHandler;
+import elec332.microcode.api.MicrocodeAPI;
 
 import java.lang.reflect.Field;
 

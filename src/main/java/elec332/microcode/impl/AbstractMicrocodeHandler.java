@@ -5,6 +5,7 @@ import elec332.microcode.api.IMicrocodeBit;
 import elec332.microcode.api.IMicrocodeHandler;
 import elec332.microcode.api.IMicrocodeInstruction;
 import elec332.promprogrammer.api.IPROMData;
+import elec332.promprogrammer.api.IPROMLink;
 
 import java.util.*;
 import java.util.function.Consumer;
@@ -24,7 +25,7 @@ abstract class AbstractMicrocodeHandler implements IMicrocodeHandler {
         this.nonStageInputs_ = Collections.unmodifiableList(this.nonStageInputBits);
         List<IInputBit> instructionInputs = new ArrayList<>();
         this.instructionInputs_ = Collections.unmodifiableList(instructionInputs);
-        this.stageBits = Integer.SIZE - Integer.numberOfLeadingZeros(stages);
+        this.stageBits = Integer.SIZE - Integer.numberOfLeadingZeros(stages - 1);
         for (int i = 0; i < instructionBits; i++) {
             instructionInputs.add(provisionInputBit("Instruction bit " + i, i));
         }
@@ -53,7 +54,7 @@ abstract class AbstractMicrocodeHandler implements IMicrocodeHandler {
     private IInputBit[] wildcardArr;
 
     private boolean frozen, init;
-    private int inputs, outputs;
+    private int inputs, outputs, maxInputBit;
 
     @Override
     public void addInstruction(int instruction, Consumer<IMicrocodeInstruction.Builder> builder, IInputBit... inputz) {
@@ -82,7 +83,7 @@ abstract class AbstractMicrocodeHandler implements IMicrocodeHandler {
         inputs.removeIf(inputBit -> inputBit instanceof MicrocodeBit.Wildcard);
         int compiledInput = compile(inputs);
 
-        MicroInstructionBuilder mib = new MicroInstructionBuilder();
+        MicroInstructionBuilder mib = new MicroInstructionBuilder(stages);
         builder.accept(mib);
 
         int n = validBits.size();
@@ -98,12 +99,8 @@ abstract class AbstractMicrocodeHandler implements IMicrocodeHandler {
                     data.add(validBits.get(j));
                 }
             }
-            if (instruction>=0)
-            System.out.println(data);
             int iD = compile(data) | compiledInput;
-            if (instruction>=0)
-            System.out.println("add builder to "+Integer.toBinaryString(iD));
-            instructions.computeIfAbsent(iD, integer -> new MicroInstructionBuilder()).merge(mib);
+            instructions.computeIfAbsent(iD, integer -> new MicroInstructionBuilder(stages)).merge(mib);
         }
 
     }
@@ -130,8 +127,9 @@ abstract class AbstractMicrocodeHandler implements IMicrocodeHandler {
     }
 
     @Override
-    public void writeData(IPROMData chip) {
-        this.writeHandler.writeData(chip, -1);
+    public void writeData(IPROMLink link, int chipNr) {
+        link.clearEEPROM();
+        link.write(this.writeHandler.writeData(link.getPROMType(), chipNr), true);
     }
 
     private int compile(List<IInputBit> bits){
@@ -171,9 +169,13 @@ abstract class AbstractMicrocodeHandler implements IMicrocodeHandler {
         return new MicrocodeBit.Wildcard(getWC(exclusive));
     }
 
-    private List<IInputBit> getNonStageInputBits() {
+    protected List<IInputBit> getNonStageInputBits() {
         checkFreeze(true);
         return this.nonStageInputs_;
+    }
+
+    protected int getMaxInputBit(){
+        return this.maxInputBit;
     }
 
     @Override
@@ -223,6 +225,9 @@ abstract class AbstractMicrocodeHandler implements IMicrocodeHandler {
         }
         if (id < 0){
             throw new IllegalArgumentException("Bit id cannot be negative!");
+        }
+        if (id > maxInputBit){
+            maxInputBit = id;
         }
         IInputBit ret = new MicrocodeBit(id, desc);
         this.provisionedInputs.put(id, ret);

@@ -19,6 +19,10 @@ public interface IMicrocodeInstruction {
 
         public String getDescription();
 
+        public void setInstructionName(String instr);
+
+        public String getInstructionName();
+
     }
 
 }
